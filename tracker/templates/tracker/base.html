@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Water Tracker</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <style>
+        /* Style for the water bottle graphic */
+        .water-bottle {
+            position: relative;
+            width: 100px;
+            height: 300px;
+            border: 2px solid #007bff;
+            border-radius: 10px;
+            margin: 20px auto;
+            overflow: hidden;
+            background: #e9ecef;
+        }
+        .water-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background-color: #007bff;
+            transition: height 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+    <!-- jQuery (optional, for Bootstrap) -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <!-- Chart.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0"></script>
+    <!-- Extra JS block for child templates -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

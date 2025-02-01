@@ -1,0 +1,203 @@
+{% extends 'tracker/base.html' %}
+
+{% block content %}
+<h1 class="text-center">Water Tracker</h1>
+
+<!-- Date Picker to select day for the bottle chart -->
+<div class="text-center mb-4">
+    <form method="get" class="form-inline justify-content-center">
+        <label for="date" class="mr-2">View consumption for:</label>
+        <input type="date" id="date" name="date" value="{{ selected_date }}" class="form-control mr-2" onchange="this.form.submit()">
+    </form>
+</div>
+
+<!-- New Entry Form -->
+<div class="mb-3">
+  <form method="post" class="form-inline justify-content-center">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="form-group mx-2">
+      {{ form.person.label_tag }}
+      {{ form.person }}
+    </div>
+    <div class="form-group mx-2">
+      {{ form.amount.label_tag }}
+      {{ form.amount }}
+    </div>
+    <div class="form-group mx-2">
+      {{ form.liquid_type.label_tag }}
+      {{ form.liquid_type }}
+    </div>
+    <div class="form-group mx-2">
+      {{ form.entry_date.label_tag }}
+      {{ form.entry_date }}
+    </div>
+    <button type="submit" class="btn btn-primary mx-2">Add Entry</button>
+  </form>
+</div>
+
+<!-- Bottle Charts for Each Person for the Selected Day -->
+<div class="row text-center">
+    <div class="col-md-6">
+        <h3>Sebo's Consumption on {{ selected_date }}:<br>
+            {{ selected_sebo_total|floatformat:1 }} oz / 100 oz</h3>
+        <div class="water-bottle" style="position: relative;">
+            {% for segment in sebo_segments %}
+            <div class="water-fill-segment"
+                 style="position: absolute;
+                        bottom: {{ segment.offset }}%;
+                        height: {{ segment.percentage }}%;
+                        width: 100%;
+                        background-color: {{ segment.color }};">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+  
+    <div class="col-md-6">
+        <h3>Alomi's Consumption on {{ selected_date }}:<br>
+            {{ selected_alomi_total|floatformat:1 }} oz / 64 oz</h3>
+        <div class="water-bottle" style="position: relative;">
+            {% for segment in alomi_segments %}
+            <div class="water-fill-segment"
+                 style="position: absolute;
+                        bottom: {{ segment.offset }}%;
+                        height: {{ segment.percentage }}%;
+                        width: 100%;
+                        background-color: {{ segment.color }};">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Overall Totals Display -->
+<div class="row text-center mt-4">
+    <div class="col-md-6">
+      <h4>All‑Time Total for Sebo: {{ total_sebo|floatformat:1 }} oz</h4>
+    </div>
+    <div class="col-md-6">
+      <h4>All‑Time Total for Alomi: {{ total_alomi|floatformat:1 }} oz</h4>
+    </div>
+</div>
+
+<div class="text-center mt-3">
+    <a href="{% url 'entry_list' %}" class="btn btn-secondary">View Past Entries</a>
+</div>
+
+<!-- Historical Grouped Stacked Bar Chart -->
+<div class="mt-5">
+    <h3 class="text-center">Daily Consumption History</h3>
+    <canvas id="historicalChart" width="800" height="400"></canvas>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Debug logs for data
+    console.log("Historical Labels:", {{ historical_labels|safe }});
+    console.log("Historical Datasets:", {{ historical_datasets|safe }});
+    console.log("Historical Totals:", {{ historical_totals|safe }});
+
+    var ctx = document.getElementById('historicalChart').getContext('2d');
+    var historicalChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ historical_labels|safe }},
+            datasets: {{ historical_datasets|safe }}
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        // Generate one legend item per beverage type only.
+                        generateLabels: function(chart) {
+                            var data = chart.data;
+                            var legendLabels = [];
+                            var seen = {};
+                            data.datasets.forEach(function(ds) {
+                                // Assuming ds.label is of the form "Sebo - Water"
+                                var parts = ds.label.split(' - ');
+                                var beverage = parts[1] ? parts[1] : ds.label;
+                                if (!seen[beverage]) {
+                                    seen[beverage] = true;
+                                    legendLabels.push({
+                                        text: beverage,
+                                        fillStyle: ds.backgroundColor[0],
+                                        hidden: false,
+                                        lineCap: ds.borderCapStyle,
+                                        lineDash: ds.borderDash,
+                                        lineDashOffset: ds.borderDashOffset,
+                                        lineJoin: ds.borderJoinStyle,
+                                        strokeStyle: ds.borderColor,
+                                        lineWidth: ds.borderWidth,
+                                        datasetIndex: 0
+                                    });
+                                }
+                            });
+                            return legendLabels;
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        // Append a red indicator text if target is not met.
+                        afterBody: function(tooltipItems, data) {
+                            // Get the daily totals passed from the view.
+                            var totals = {{ historical_totals|safe }};
+                            // For simplicity, use the first tooltip item to determine the person.
+                            var item = tooltipItems[0];
+                            var ds = data.datasets[item.datasetIndex];
+                            var person = ds.stack; // "sebo" or "alomi"
+                            var dayIndex = item.index;
+                            var target = (person === 'sebo') ? {{ sebo_goal }} : {{ alomi_goal }};
+                            var personTotals = totals[person];
+                            if (personTotals && personTotals[dayIndex] < target) {
+                                return "\nTarget not met";
+                            }
+                            return "";
+                        }
+                    },
+                    // Optional: style the extra tooltip text in red.
+                    titleFontColor: 'red',
+                    bodyFontColor: 'red'
+                },
+                annotation: {
+                    annotations: {
+                        seboTarget: {
+                            type: 'line',
+                            yMin: {{ sebo_goal }},
+                            yMax: {{ sebo_goal }},
+                            borderColor: 'rgba(255, 0, 0, 0.8)',
+                            borderWidth: 2,
+                            label: {
+                                enabled: true,
+                                content: 'Sebo Target (100 oz)',
+                                position: 'start'
+                            }
+                        },
+                        alomiTarget: {
+                            type: 'line',
+                            yMin: {{ alomi_goal }},
+                            yMax: {{ alomi_goal }},
+                            borderColor: 'rgba(255, 0, 0, 0.8)',
+                            borderWidth: 2,
+                            label: {
+                                enabled: true,
+                                content: 'Alomi Target (64 oz)',
+                                position: 'end'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
