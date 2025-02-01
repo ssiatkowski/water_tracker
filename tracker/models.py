@@ -12,6 +12,7 @@ LIQUID_CHOICES = [
     ('sparkling water', 'Sparkling Water'),
     ('coffee', 'Coffee'),
     ('tea', 'Tea'),
+    ('milk', 'Milk'),
     ('juice', 'Juice'),
     ('soda', 'Soda'),
     ('beer', 'Beer'),
